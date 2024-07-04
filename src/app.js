@@ -1,0 +1,40 @@
+import express from "express"
+import cors from 'cors'
+import cookieParser from "cookie-parser"
+
+
+const app = express()
+
+
+// Apply CORS globally
+app.use(cors({
+    origin: process.env.CORS_ORIGIN
+}))
+
+// we can apply cors for specific routes also
+// var corsOptions = {
+//     origin: process.env.CORS_ORIGIN
+// };
+
+// // applying cors for specific routes
+// app.get('/products/:id',  cors(corsOptions), function (req, res, next) {
+//     res.json({ msg: 'This is CORS-enabled for only example.com.' });
+// });
+
+
+// express configurations
+
+// Middleware to parse incoming JSON requests with a limit of 16kb
+app.use(express.json({ limit: "16kb" }));
+
+// Middleware to parse incoming URL-encoded form data with extended options and a limit of 16kb
+app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+
+// Middleware to serve static files from the "public" directory
+app.use(express.static("public"));
+
+// Middleware to parse cookies from incoming requests
+app.use(cookieParser());
+
+
+export { app }
