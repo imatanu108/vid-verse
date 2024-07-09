@@ -10,14 +10,14 @@ router.route("/register").post(
         {
             name: "avatar",
             maxCount: 1
-        },
+        }, 
         {
             name: "coverImage",
             maxCount: 1
         }
     ]),
     registerUser
-) 
+)
 // The .post() method in Express.js is used to define a route that responds to HTTP POST requests. 
 
 export default router

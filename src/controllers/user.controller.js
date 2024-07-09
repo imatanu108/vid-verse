@@ -16,11 +16,18 @@ const registerUser = asyncHandler(async (req, res) => {
     // 8. check for user creation 
     // 9. return response
 
+    // console.log("-------------------------------------------------------------------------")
+    // console.log("req.body", req.body)
+    // console.log("-------------------------------------------------------------------------")
+    // console.log("req.files", req.files)
+    // console.log("-------------------------------------------------------------------------")
+
 
     // 1. Getting user details
 
     const { fullName, username, email, password } = req.body
     console.log("email:", email)
+    console.log("username:", username)
 
     // 2. Basic Validation
 
@@ -32,7 +39,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // 3. checking for existing user
 
-    const existedUser = User.findOne({
+    const existedUser = await User.findOne({
         $or: [{ username }, { email }]
     })
 
@@ -42,8 +49,18 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // 4. check for images and check for avatars
 
-    const avatarLocalPath = req.files?.avatar[0].path;
-    const coverImageLocalPath = req.files?.coverImage[0].path;
+    // const avatarLocalPath = req.files?.avatar[0].path;
+    // const coverImageLocalPath = req.files?.coverImage[0].path;
+
+    let avatarLocalPath;
+    if (req.files && Array.isArray(req.files.avatar) && req.files.avatar.length > 0) {
+        avatarLocalPath = req.files.avatar[0].path
+    }
+    
+    let coverImageLocalPath;
+    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+        coverImageLocalPath = req.files.coverImage[0].path
+    }
 
     // avatar is required, but cover image is optional
     if (!avatarLocalPath) {
@@ -73,7 +90,7 @@ const registerUser = asyncHandler(async (req, res) => {
         coverImage: coverImageUploadResult?.url,
         email,
         password,
-        username: username.toLowerCase
+        username: username.toLowerCase()
     })
 
     // 7. checking if user is created and removing password and refreshToken
