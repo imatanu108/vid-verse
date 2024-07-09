@@ -6,7 +6,8 @@ import cookieParser from "cookie-parser"
 const app = express()
 
 
-// Apply CORS globally
+// Applying CORS globally
+
 app.use(cors({
     origin: process.env.CORS_ORIGIN
 }))
@@ -36,5 +37,14 @@ app.use(express.static("public"));
 // Middleware to parse cookies from incoming requests
 app.use(cookieParser());
 
+
+// importing routes
+
+import userRouter from './routes/user.routes.js'
+
+// routes declaration
+app.use("/api/v1/users", userRouter)
+
+// http://localhost:8000/api/v1/users/register
 
 export { app }
