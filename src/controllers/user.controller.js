@@ -279,7 +279,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 })
 
 
-const refershAccessToken = asyncHandler(async (req, res) => {
+const refreshAccessToken = asyncHandler(async (req, res) => {
     try {
 
         // console.log("req.cookies || refreshAccessToken", req.cookies)
@@ -514,7 +514,7 @@ export {
     registerUser,
     loginUser,
     logoutUser,
-    refershAccessToken,
+    refreshAccessToken,
     changeCurrentPassword,
     getCurrentUser,
     updateAccountDetails,

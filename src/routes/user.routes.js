@@ -4,7 +4,7 @@ import {
     getCurrentUser,
     loginUser, 
     logoutUser, 
-    refershAccessToken, 
+    refreshAccessToken, 
     registerUser, 
     updateAccountDetails,
     updateUserAvatar,
@@ -31,21 +31,24 @@ router.route("/register").post(
 )
 
 router.route("/login").post(loginUser)
+
+
+// secured routes
+router.route("/logout").post(verifyJWT, logoutUser)
+router.route("/refresh-token").post(refreshAccessToken)
+router.route("/change-password").post(verifyJWT, changeCurrentPassword)
+router.route("/current-user").post(verifyJWT, getCurrentUser)
+router.route("/update-user").post(verifyJWT, updateAccountDetails)
 router.route("/update-avatar").post(
+    verifyJWT,
     upload.single("avatar"),
     updateUserAvatar
 )
 router.route("/update-cover-image").post(
+    verifyJWT,
     upload.single("coverImage"),
     updateUserCoverImage
 )
-
-// secured routes
-router.route("/logout").post(verifyJWT, logoutUser)
-router.route("/refresh-token").post(refershAccessToken)
-router.route("/change-password").post(verifyJWT, changeCurrentPassword)
-router.route("/current-user").post(verifyJWT, getCurrentUser)
-router.route("/update-user").post(verifyJWT, updateAccountDetails)
 
 // The .post() method in Express.js is used to define a route that responds to HTTP POST requests. 
 
