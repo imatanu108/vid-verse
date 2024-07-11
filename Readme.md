@@ -9,6 +9,7 @@
 6. Middleware
 7. (err, req, res, next) in Express
 8. next() in Mongoose
+9. Access Token and Refresh Tokens
 
 ### Short Note on Cookies
 
@@ -346,3 +347,154 @@ If you don't call `next()` in Mongoose middleware:
 #### Summary
 
 In both Express and Mongoose, not using `next()` appropriately can cause requests or document operations to hang and prevent proper error handling or sequence of operations.
+
+
+### Access Token and Refresh Token: A Quick Guide
+
+**Access Token:**
+- **Purpose:** Provides short-term access to protected resources (e.g., APIs).
+- **Lifespan:** Short-lived (usually minutes to a few hours).
+- **Usage:** Included in the header of each request to authenticate the user.
+- **Storage:** Typically stored in memory or secure HTTP-only cookies to prevent exposure to client-side scripts.
+
+**Refresh Token:**
+- **Purpose:** Allows the user to obtain a new access token without logging in again.
+- **Lifespan:** Long-lived (usually days to weeks, sometimes months).
+- **Usage:** Sent to the server to request a new access token when the current one expires.
+- **Storage:** Must be stored securely (e.g., HTTP-only cookies) to avoid unauthorized access.
+
+#### How They Work Together:
+1. **Login:** User logs in and receives both an access token and a refresh token.
+2. **Access Resources:** The access token is used to authenticate requests to protected resources.
+3. **Token Expiry:** When the access token expires, the refresh token is used to obtain a new access token from the server.
+4. **Prolonged Access:** This process allows users to remain authenticated without having to log in repeatedly, enhancing user experience and security.
+
+#### Example Scenario:
+1. **Initial Login:** User provides credentials, and the server responds with an access token and a refresh token.
+2. **Making Requests:** User includes the access token in the Authorization header of requests to access protected resources.
+3. **Access Token Expiry:** Once the access token expires, the client sends the refresh token to the server.
+4. **Refreshing the Token:** The server verifies the refresh token and issues a new access token (and possibly a new refresh token).
+5. **Continued Access:** The user continues to access resources with the new access token, maintaining a seamless experience.
+
+#### Example Code for Token Generation:
+
+**User Login:**
+```javascript
+const loginUser = asyncHandler(async (req, res) => {
+    const { usernameOrEmail, password } = req.body;
+
+    if (!usernameOrEmail) {
+        throw new ApiError(400, "Email or username is required!");
+    }
+    if (!password) {
+        throw new ApiError(400, "Password is required!");
+    }
+
+    const user = await User.findOne({
+        $or: [
+            { email: usernameOrEmail },
+            { username: usernameOrEmail }
+        ]
+    });
+
+    if (!user) {
+        throw new ApiError(404, "User not found, please check username or password!");
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password);
+    if (!isPasswordValid) {
+        throw new ApiError(404, "Password is incorrect!");
+    }
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
+
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken");
+
+    const cookiesOptions = {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000 // 1 day
+    };
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, cookiesOptions)
+        .cookie("refreshToken", refreshToken, cookiesOptions)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    user: loggedInUser,
+                    accessToken,
+                    refreshToken
+                },
+                "User logged in successfully."
+            )
+        );
+});
+```
+
+**Token Generation Function:**
+```javascript
+const jwt = require('jsonwebtoken');
+
+const generateAccessAndRefreshTokens = async (userId) => {
+    const accessToken = jwt.sign({ id: userId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '15m' });
+    const refreshToken = jwt.sign({ id: userId }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
+
+    await User.findByIdAndUpdate(userId, { refreshToken });
+
+    return { accessToken, refreshToken };
+};
+```
+
+**Refresh Token Endpoint:**
+```javascript
+const refreshAccessToken = asyncHandler(async (req, res) => {
+    const { refreshToken } = req.cookies;
+
+    if (!refreshToken) {
+        throw new ApiError(401, "Refresh token is required!");
+    }
+
+    jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, async (err, decoded) => {
+        if (err) {
+            throw new ApiError(401, "Invalid refresh token!");
+        }
+
+        const user = await User.findById(decoded.id);
+        if (!user || user.refreshToken !== refreshToken) {
+            throw new ApiError(401, "Invalid refresh token!");
+        }
+
+        const { accessToken, refreshToken: newRefreshToken } = await generateAccessAndRefreshTokens(user._id);
+
+        const cookiesOptions = {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000 // 1 day
+        };
+
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, cookiesOptions)
+            .cookie("refreshToken", newRefreshToken, cookiesOptions)
+            .json(
+                new ApiResponse(
+                    200,
+                    { accessToken, refreshToken: newRefreshToken },
+                    "Tokens refreshed successfully."
+                )
+            );
+    });
+});
+```
+
+#### Security Best Practices:
+- **Access Token:** Store in memory or HTTP-only cookies to minimize security risks.
+- **Refresh Token:** Store securely (e.g., HTTP-only cookies) and limit its lifespan to reduce exposure in case of theft.
+- **Token Rotation:** Implement token rotation to regularly issue new refresh tokens, reducing the risk of token reuse attacks.
+
+By understanding and correctly implementing access tokens and refresh tokens, you can enhance the security and usability of your authentication system.
