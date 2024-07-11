@@ -51,7 +51,7 @@ const userSchema = new Schema(
     { timestamps: true }
 )
 
-// encrypting password
+// encrypting password if password is getting modified
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) return next(); // if password hasn't changed , passing the task.
 
