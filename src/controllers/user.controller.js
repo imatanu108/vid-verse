@@ -11,8 +11,6 @@ const generateAccessAndRefreshTokens = async (userId) => {
     try {
         const user = await User.findById(userId)
 
-        // console.log("user || generateAccessAndRefreshTokens", user)
-
         // validating user
         if (!user) {
             throw new ApiError(404, "User not found");
@@ -20,9 +18,6 @@ const generateAccessAndRefreshTokens = async (userId) => {
 
         const accessToken = user.generateAccessToken()
         const refreshToken = user.generateRefreshToken()
-
-        // console.log("Access token || generateAccessAndRefreshTokens", accessToken)
-        // console.log("Refresh token || generateAccessAndRefreshTokens", refreshToken)
 
         user.refreshToken = refreshToken
 
@@ -50,12 +45,6 @@ const registerUser = asyncHandler(async (req, res) => {
     // 8. check for user creation 
     // 9. return response
 
-    // console.log("-------------------------------------------------------------------------")
-    // console.log("req.body", req.body)
-    // console.log("-------------------------------------------------------------------------")
-    // console.log("req.files", req.files)
-    // console.log("-------------------------------------------------------------------------")
-
 
     // 1. Getting user details
 
@@ -82,9 +71,6 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     // 4. check for images and check for avatars
-
-    // const avatarLocalPath = req.files?.avatar[0].path;
-    // const coverImageLocalPath = req.files?.coverImage[0].path;
 
     let avatarLocalPath;
     if (req.files && Array.isArray(req.files.avatar) && req.files.avatar.length > 0) {
@@ -146,35 +132,8 @@ const registerUser = asyncHandler(async (req, res) => {
 
 
 const loginUser = asyncHandler(async (req, res) => {
-    // 1. get user details from frontend (req.body)
-    // 2. username or email
-    // --> check if user details are matching with any existing user or not(in database)
-    // 3. password check
-    // 4. generate access and refresh tokens
-    // send them to user
-    // 5. response logged in
-
 
     // 1. getting user details
-
-    // Needs two different form fields for username and email
-    // const { email, username, password } = req.body
-
-    // // email or username is required
-    // if (!email && !username) {
-    //     throw new ApiError(400, "email or username is required!")
-    // }
-
-    // if (!password) {
-    //     throw new ApiError(400, "password is required!")
-    // }
-
-    // // 2. finding user
-
-    // const user = await User.findOne({
-    //     $or: [{ username }, { email }]
-    // })
-
 
     // Needs only one form field for username or email
     const { usernameOrEmail, password } = req.body
@@ -211,15 +170,9 @@ const loginUser = asyncHandler(async (req, res) => {
 
     // 4. Generating Access and refersh tokens
 
-
     const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id)
 
-    console.log("Access token || login", accessToken)
-    console.log("Refresh token || login", refreshToken)
-
-
-
-    // the user that is available inside this block is still not updated, but that is updated in the database as we've called generateAccessAndRefreshTokens() method using that user._id, so we are againg fetching the user with the same id from the data base, and removing unwanted attributes (such as password)
+    // fetching updated user from the database and removing unwanted attributes (such as password) before sending respond
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
@@ -280,11 +233,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 const refreshAccessToken = asyncHandler(async (req, res) => {
     try {
 
-        // console.log("req.cookies || refreshAccessToken", req.cookies)
-
         const incomingRefreshToken = req.cookies?.refreshToken || req.body.refreshToken
-
-        // console.log("incoming refresh token:", incomingRefreshToken)
 
         if (!incomingRefreshToken) {
             throw new ApiError(401, "Unauthorized request!")
@@ -381,6 +330,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 const updateAccountDetails = asyncHandler(async (req, res) => {
 
     const {fullName, email, username} = req.body
+
     // while updating files there should be a different end-point
 
     if (!fullName || !email || !username) {
@@ -390,11 +340,13 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id).select("-password -refreshToken")
 
     // changing the full name if modified
+
     if (fullName && fullName !== user.fullName) {
         user.fullName = fullName
     }
 
     // Check if the email is already in use by another user
+
     const isEmailExist = await User.findOne({email})
 
     if (isEmailExist && isEmailExist._id.toString() !== user._id.toString()) {
@@ -407,6 +359,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     user.email = email
 
     // Check if the username is already in use by another user
+
     const isUsernameExist = await User.findOne({username})
 
     if (isUsernameExist && isUsernameExist._id.toString() !== user._id.toString()) {
