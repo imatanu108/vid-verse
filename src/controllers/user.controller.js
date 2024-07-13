@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from 'jsonwebtoken';
+import mongoose from "mongoose";
 
 
 // pre-defined method for generating access and refresh tokens 
@@ -282,14 +283,14 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
-    const { oldPassword, newPassword, confirmNewPassword} = req.body
+    const { oldPassword, newPassword, confirmNewPassword } = req.body
 
     // before run changeCurrentPassword we need to go through verifyJWT middleware to ensure the user is logged in or not, as in this middleware we are setting req.user = user, we can access the req.user from here also as the verifyJWT middleware is alreday ran
 
     if (newPassword !== confirmNewPassword) {
         throw new ApiError(400, "New password and confirmation password do not match.");
     }
-    
+
     const user = await User.findById(req.user._id)
 
     const isPasswordValid = await user.isPasswordCorrect(oldPassword)
@@ -299,7 +300,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     }
 
     user.password = newPassword
-    await user.save({validateBeforeSave: false})
+    await user.save({ validateBeforeSave: false })
 
     return res
         .status(200)
@@ -329,7 +330,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
 
-    const {fullName, email, username} = req.body
+    const { fullName, email, username } = req.body
 
     // while updating files there should be a different end-point
 
@@ -347,7 +348,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
     // Check if the email is already in use by another user
 
-    const isEmailExist = await User.findOne({email})
+    const isEmailExist = await User.findOne({ email })
 
     if (isEmailExist && isEmailExist._id.toString() !== user._id.toString()) {
         throw new ApiError(
@@ -360,7 +361,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
     // Check if the username is already in use by another user
 
-    const isUsernameExist = await User.findOne({username})
+    const isUsernameExist = await User.findOne({ username })
 
     if (isUsernameExist && isUsernameExist._id.toString() !== user._id.toString()) {
         throw new ApiError(
@@ -371,7 +372,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
     user.username = username
 
-    await user.save({validateBeforeSave: false})
+    await user.save({ validateBeforeSave: false })
 
     return res
         .status(200)
@@ -382,7 +383,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
                 "Account updated successfully."
             )
         )
-} )
+})
 
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
@@ -462,7 +463,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
 
 const getUserChannelProfile = asyncHandler(async (req, res) => {
-    const {username} = req.params
+    const { username } = req.params
 
     if (!username.trim()) {
         throw new ApiError(400, "username is missing")
@@ -500,7 +501,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
                 },
                 isSubscribed: {
                     $cond: {
-                        if: {$in: [req.user._id, "$subscribers.subscriber"]},
+                        if: { $in: [req.user._id, "$subscribers.subscriber"] },
                         then: true,
                         else: false
                     }
@@ -513,15 +514,15 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
                 username: 1,
                 subscribersCount: 1,
                 channelsSubscribedToCount: 1,
-                isSubscribed:1,
+                isSubscribed: 1,
                 avatar: 1,
                 coverImage: 1,
             }
         }
     ])
 
-    console.log("channel: ", channel)
-    
+    // console.log("channel: ", channel)
+
     if (!channel?.length) {
         throw new ApiError(404, "Channel does not exists!")
     }
@@ -535,8 +536,66 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
                 "Channel fetched successfully."
             )
         )
-    
+
 })
+
+
+const getWatchHistory = asyncHandler(async (req, res) => {
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(String(req.user._id))
+            }
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner", // here overwriting the owner inside the video document
+                            pipeline: [
+                                {
+                                    $project: {
+                                        fullName: 1,
+                                        username: 1,
+                                        avatar: 1
+                                    }
+                                }
+                            ]
+                        },
+                    },
+                    // here owner will be structured like owner : [{owner data}] - as its creating documents
+                    // to make frontend dev life easy, taking out the first object of the owner[], right here and overwriting owner with it.
+                    {
+                        $addFields: {
+                            owner: {
+                                $first: "$owner"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ])
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                user[0].watchHistory,
+                "Watch history fetched successfully."
+            )
+        )
+})
+
 
 export {
     registerUser,
@@ -548,5 +607,6 @@ export {
     updateAccountDetails,
     updateUserAvatar,
     updateUserCoverImage,
-    getUserChannelProfile
+    getUserChannelProfile,
+    getWatchHistory
 }
