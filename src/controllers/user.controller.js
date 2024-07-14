@@ -50,8 +50,9 @@ const registerUser = asyncHandler(async (req, res) => {
     // 1. Getting user details
 
     const { fullName, username, email, password } = req.body
-    console.log("email:", email)
-    console.log("username:", username)
+
+    // console.log("email:", email)
+    // console.log("username:", username)
 
     // 2. Basic Validation
 
@@ -59,6 +60,13 @@ const registerUser = asyncHandler(async (req, res) => {
         [fullName, username, email, password].some((field) => field?.trim() === "")
     ) {
         throw new ApiError(400, "All fields are required!")
+    }
+
+    // username validation
+    const usernamePattern = /^[a-zA-Z0-9-_]+$/;
+
+    if (!usernamePattern.test(username)) {
+        throw new ApiError(400, "Invalid username: only letters, numbers, hyphens, and underscores are allowed.")
     }
 
     // 3. checking for existing user
