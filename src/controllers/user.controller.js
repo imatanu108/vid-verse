@@ -560,6 +560,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
                 from: "videos",
                 localField: "watchHistory",
                 foreignField: "_id",
+                // When the localField is an array, MongoDB will match each element of the array with the foreignField of the other collection, here watchHistory is an array
                 as: "watchHistory",
                 pipeline: [
                     {
