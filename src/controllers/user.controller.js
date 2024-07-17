@@ -98,8 +98,8 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // 5. upload them to cloudinary, check if uploaded or not
 
-    const avatarUploadResult = await uploadOnCloudinary(avatarLocalPath)
-    const coverImageUploadResult = await uploadOnCloudinary(coverImageLocalPath)
+    const avatarUploadResult = await uploadOnCloudinary(avatarLocalPath, "image")
+    const coverImageUploadResult = await uploadOnCloudinary(coverImageLocalPath, "image")
 
     // checking if avatar is uploaded successfully
     if (!avatarUploadResult) {
@@ -342,7 +342,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
     // while updating files there should be a different end-point
 
-    if (!fullName || !email || !username) {
+    if (!fullName.trim() || !email.trim() || !username.trim()) {
         throw new ApiError(400, "Full name, email, and username are required.");
     }
 
@@ -401,7 +401,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Avatar file is missing!")
     }
 
-    const avatar = await uploadOnCloudinary(avatarLocalPath)
+    const avatar = await uploadOnCloudinary(avatarLocalPath, "image")
 
     if (!avatar.url) {
         throw new ApiError(400, "Error while uploading an avatar.")
@@ -439,7 +439,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Cover image file is missing!")
     }
 
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath, "image")
 
     if (!coverImage.url) {
         throw new ApiError(400, "Error while uploading a cover image.")
