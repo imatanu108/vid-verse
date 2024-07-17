@@ -281,7 +281,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
     // addFields stage to destructure the first element of ownerDetails array
     const addFieldsStage = {
         $addFields: {
-             ownerDetails: { $arrayElemAt: ["$ownerDetails", 0] } // Get the first element directly
+            ownerDetails: { $arrayElemAt: ["$ownerDetails", 0] } // Get the first element directly
         }
     }
     pipeline.push(addFieldsStage);
@@ -333,6 +333,18 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
     const totalVideosCount = totalVideos.length > 0 ? totalVideos[0].totalVideosCount : 0;
 
+    if (totalVideosCount === 0) {
+        return res
+            .status(404)
+            .json(
+                new ApiResponse(
+                    404,
+                    [],
+                    "No videos found!"
+                )
+            )
+    }
+
     if (!videos || !totalVideosCount) {
         throw new ApiError(400, "Something went wrong while fetching the videos.")
     }
@@ -357,11 +369,80 @@ const getAllVideos = asyncHandler(async (req, res) => {
 // implement getAllVideosByChannelID
 // take the username as query --> find the channel --> find channel id --> search for videos with $match channelId --> pagination
 
+const getVideosByChannel = asyncHandler(async (req, res) => {
+    const { username } = req.params
+    const { page = 1, limit = 50, sortBy = "createdAt", sortType = "desc" } = req.query
+
+    if (!username) {
+        throw new ApiError(400, "Channel username is required!")
+    }
+
+    const channel = await User.findOne({ username })
+
+    if (!channel) {
+        throw new ApiError(404, "Channel does not exist.")
+    }
+
+    const channelVideos = await Video.aggregate([
+
+        { $match: { owner: new mongoose.Types.ObjectId(String(channel._id)) } },
+
+        { $sort: { [sortBy]: sortType === 'asc' ? 1 : -1 } },
+
+        { $skip: (page - 1) * limit },
+
+        { $limit: parseInt(limit) }
+
+    ])
+
+    if (!channelVideos) {
+        throw new ApiError(400, "Something went wrong while fetching the videos.")
+    }
+
+    const totalVideos = await Video.countDocuments({
+        owner: new mongoose.Types.ObjectId(String(channel._id))
+    })
+
+    if (totalVideos === 0) {
+        return res
+            .status(200)
+            .json(
+                new ApiResponse(
+                    200,
+                    {
+                        videos: [],
+                        currentPage: parseInt(page),
+                        totalPages: 0,
+                        totalVideos: 0
+                    },
+                    "This channel don't have any videos."
+                )
+            )
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    videos: channelVideos,
+                    currentPage: parseInt(page),
+                    totalPages: Math.ceil(totalVideos / limit),
+                    totalVideos
+                },
+                "Video(s) fetched successfully."
+            )
+        )
+
+})
+
 export {
     publishAVideo,
     getVideoById,
     updateVideo,
     deleteVideo,
     togglePublishStatus,
-    getAllVideos
+    getAllVideos,
+    getVideosByChannel
 }

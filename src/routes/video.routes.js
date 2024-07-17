@@ -7,7 +7,8 @@ import {
     deleteVideo,
     togglePublishStatus,
     getVideoById,
-    getAllVideos
+    getAllVideos,
+    getVideosByChannel
 } from "../controllers/video.controller.js";
 
 const router = Router()
@@ -40,6 +41,8 @@ router
     .patch(upload.single("thumbnail"), updateVideo);
 
 router.route("/toggle/publish/:videoId").patch(togglePublishStatus);
+
+router.route("/:username").get(getVideosByChannel)
 
 
 export default router
