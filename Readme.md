@@ -10,6 +10,8 @@
 7. (err, req, res, next) in Express
 8. next() in Mongoose
 9. Access Token and Refresh Tokens
+10. Understanding $regex and $options in MongoDB
+11. MongoDB Query Methods (filter, sort, skip, limit)
 
 ### Short Note on Cookies
 
@@ -498,3 +500,188 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 - **Token Rotation:** Implement token rotation to regularly issue new refresh tokens, reducing the risk of token reuse attacks.
 
 By understanding and correctly implementing access tokens and refresh tokens, you can enhance the security and usability of your authentication system.
+
+
+### Understanding `$regex` and `$options` in MongoDB
+
+#### `$regex`
+
+- **Purpose**: Allows pattern matching against a string field in MongoDB documents.
+
+#### `$options`
+
+- **Purpose**: Specifies options for the regex. Common options include:
+  - **`'i'`**: Case-insensitive matching.
+  - **`'m'`**: Multiline matching.
+  - **`'x'`**: Ignore whitespace and comments in the pattern.
+
+#### How They Work Together
+
+Combining `$regex` with `$options` allows flexible searching in your database.
+
+#### Examples
+
+#### Example Document Structure
+
+```json
+{
+    "_id": "1",
+    "title": "Learn JavaScript Basics",
+    "description": "A comprehensive guide to JavaScript."
+},
+{
+    "_id": "2",
+    "title": "Advanced JavaScript Techniques",
+    "description": "Deep dive into JS for advanced developers."
+},
+{
+    "_id": "3",
+    "title": "Intro to Python",
+    "description": "Learn Python programming from scratch."
+}
+```
+
+#### Example 1: Case-Insensitive Matching
+
+```javascript
+const query = "javascript";
+
+const filter = {
+    $or: [
+        { title: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } }
+    ]
+};
+```
+**Result**: Matches titles like "Learn JavaScript Basics" and "Advanced JavaScript Techniques".
+
+#### Example 2: Pattern Matching (Starts With)
+
+```javascript
+const query = "^Learn";
+
+const filter = {
+    $or: [
+        { title: { $regex: query } },
+        { description: { $regex: query } }
+    ]
+};
+```
+**Result**: Matches "Learn JavaScript Basics".
+
+#### Example 3: Multiline Matching
+
+**Purpose**: The `^` and `$` anchors in regex typically match the start and end of a line. When working with multiline strings, you may want to match patterns that span across multiple lines.
+
+When using the `'m'` option with `$regex`, it allows `^` and `$` to match the start and end of each line within a multi-line string.
+
+**Example Document**:
+
+```json
+{
+    "_id": "4",
+    "title": "Documenting JavaScript",
+    "description": "This video covers:\n- JavaScript basics\n- Advanced topics\n- Best practices"
+}
+```
+
+**Searching for a Pattern**:
+
+If you want to find descriptions containing "JavaScript" regardless of line breaks, you could use:
+
+```javascript
+const query = "JavaScript";
+const filter = {
+    description: { $regex: query, $options: 'm' }
+};
+```
+
+**What Happens**:
+
+- Without the `'m'` option, the regex would treat the entire description as a single line and would not match "JavaScript" if it appears in the middle of a line.
+
+- With the `'m'` option, the regex can effectively look for "JavaScript" anywhere in the description, ensuring matches even across line breaks.
+
+#### Complete Query Example
+
+```javascript
+const videos = await Video.find({
+    $or: [
+        { title: { $regex: "javascript", $options: 'i' } },
+        { description: { $regex: "javascript", $options: 'i' } }
+    ]
+});
+```
+**Result**: Returns documents where title or description contains "javascript", regardless of case.
+
+--- 
+
+### Breakdown of MongoDB Query Methods
+
+Here’s an explanation of each method used in your query:
+
+#### 1. `.find(filter)`
+
+- **Purpose**: Retrieves documents from the MongoDB collection that match the specified filter criteria.
+- **Example**: If your filter looks for videos with a specific title or description using `$regex`, this method will return all matching documents.
+
+```javascript
+const videos = await Video.find(filter);
+```
+
+#### 2. `.sort(sort)`
+
+- **Purpose**: Sorts the retrieved documents based on specified fields and order.
+- **Example**: If you want to sort videos by `createdAt` in descending order, your `sort` object will look like this:
+
+```javascript
+const sort = {
+    createdAt: -1 // Sort by createdAt in descending order
+};
+```
+
+```javascript
+const videos = await Video.find(filter).sort(sort);
+```
+
+#### 3. `.skip((page - 1) * limit)`
+
+- **Purpose**: Skips a specified number of documents to implement pagination. This is useful for displaying a specific page of results.
+- **Example**: If `page` is 2 and `limit` is 10, this will skip the first 10 documents (i.e., the first page), effectively starting from the 11th document.
+
+```javascript
+const videos = await Video.find(filter).sort(sort).skip((page - 1) * limit);
+```
+
+#### 4. `.limit(parseInt(limit))`
+
+- **Purpose**: Limits the number of documents returned to a specified count, defined by `limit`.
+- **Example**: If `limit` is 10, this will return only 10 documents.
+
+```javascript
+const videos = await Video.find(filter).sort(sort).skip((page - 1) * limit).limit(parseInt(limit));
+```
+
+#### Complete Query Example
+
+Putting it all together, here’s the full query:
+
+```javascript
+const videos = await Video.find(filter)
+    .sort(sort)
+    .skip((page - 1) * limit)
+    .limit(parseInt(limit));
+```
+
+#### Summary Table
+
+| Method   | Purpose                                           |
+|----------|---------------------------------------------------|
+| `.find()` | Retrieve documents that match the filter          |
+| `.sort()` | Sort the results based on specified fields        |
+| `.skip()` | Skip a number of documents for pagination         |
+| `.limit()`| Limit the number of documents returned            |
+
+This structure allows you to effectively retrieve paginated, sorted, and filtered results from your MongoDB collection. If you have more questions or need further clarification, let me know!
+
+

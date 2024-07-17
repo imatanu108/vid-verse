@@ -261,9 +261,101 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
-    //TODO: get all videos based on query, sort, pagination
+    const { page = 1, limit = 10, query, sortBy = "createdAt", sortType = "desc" } = req.query
+
+    const pipeline = [];
+
+    // Fetching those videos also whose Channel name and channels username matches with the query
+
+    // Lookup stage to join with User collection
+    const lookupStage = {
+        $lookup: {
+            from: "users", // The name of your User collection
+            localField: "owner",
+            foreignField: "_id",
+            as: "ownerDetails"
+        }
+    };
+    pipeline.push(lookupStage);
+
+    // addFields stage to destructure the first element of ownerDetails array
+    const addFieldsStage = {
+        $addFields: {
+             ownerDetails: { $arrayElemAt: ["$ownerDetails", 0] } // Get the first element directly
+        }
+    }
+    pipeline.push(addFieldsStage);
+
+    // Match stage to filter by userId and search query
+    const matchStage = {
+        $match: {
+            ...(query && {
+                $or: [
+                    { title: { $regex: query, $options: 'i' } },
+                    { description: { $regex: query, $options: 'i' } },
+                    { "ownerDetails.fullName": { $regex: query, $options: 'i' } },
+                    { "ownerDetails.username": { $regex: query, $options: 'i' } },
+                ]
+            })
+        }
+    };
+    pipeline.push(matchStage);
+
+    // Sort stage
+    const sortStage = {
+        $sort: {
+            [sortBy]: sortType === 'asc' ? 1 : -1
+        }
+    };
+    pipeline.push(sortStage);
+
+    // Pagination stage
+    const skipStage = {
+        $skip: (page - 1) * limit
+    };
+    pipeline.push(skipStage);
+
+    const limitStage = {
+        $limit: parseInt(limit)
+    };
+    pipeline.push(limitStage);
+
+    // Execute the aggregation
+    const videos = await Video.aggregate(pipeline);
+
+    // Fetch the total count of videos matching the filters
+    const totalVideos = await Video.aggregate([
+        { ...lookupStage },
+        { ...addFieldsStage },
+        { ...matchStage },
+        { $count: "totalVideosCount" }
+    ]);
+
+    const totalVideosCount = totalVideos.length > 0 ? totalVideos[0].totalVideosCount : 0;
+
+    if (!videos || !totalVideosCount) {
+        throw new ApiError(400, "Something went wrong while fetching the videos.")
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    videos,
+                    currentPage: parseInt(page),
+                    totalPages: Math.ceil(totalVideosCount / limit),
+                    totalVideos: totalVideosCount
+                },
+                "Videos fetched successfully!"
+            )
+        )
 })
+
+
+// implement getAllVideosByChannelID
+// take the username as query --> find the channel --> find channel id --> search for videos with $match channelId --> pagination
 
 export {
     publishAVideo,

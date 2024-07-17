@@ -585,7 +585,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
                     {
                         $addFields: {
                             owner: {
-                                $first: "$owner"
+                                $arrayElemAt: ["$owner", 0] // Get the first element directly
                             }
                         }
                     }
