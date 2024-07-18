@@ -1,16 +1,16 @@
-import { Video } from "../models/video.model";
-import { User } from "../models/user.model";
-import { asyncHandler } from "../utils/asyncHandler";
-import { ApiError } from "../utils/ApiError";
-import { ApiResponse } from "../utils/ApiResponse";
-import { uploadOnCloudinary } from "../utils/cloudinary";
+import { Video } from "../models/video.model.js";
+import { User } from "../models/user.model.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import mongoose from "mongoose";
 
 
 const publishAVideo = asyncHandler(async (req, res) => {
     const { title, description } = req.body
 
-    if (!title.trim() || !description.trim()) {
+    if (!title || !title.trim() || !description || !description.trim()) {
         throw new ApiError(400, "Title and description are required!")
     }
 
@@ -273,10 +273,20 @@ const getAllVideos = asyncHandler(async (req, res) => {
             from: "users", // The name of your User collection
             localField: "owner",
             foreignField: "_id",
-            as: "ownerDetails"
+            as: "ownerDetails",
+            pipeline: [
+                {
+                    $project: {
+                        fullName: 1,
+                        username: 1,
+                        avatar: 1
+                    }
+                }
+            ]
         }
     };
     pipeline.push(lookupStage);
+
 
     // addFields stage to destructure the first element of ownerDetails array
     const addFieldsStage = {
@@ -365,9 +375,6 @@ const getAllVideos = asyncHandler(async (req, res) => {
         )
 })
 
-
-// implement getAllVideosByChannelID
-// take the username as query --> find the channel --> find channel id --> search for videos with $match channelId --> pagination
 
 const getVideosByChannel = asyncHandler(async (req, res) => {
     const { username } = req.params

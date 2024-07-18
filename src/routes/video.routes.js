@@ -17,7 +17,6 @@ router.use(verifyJWT); // Apply verifyJWT middleware to all routes in this file
 
 router
     .route("/")
-    .get(getAllVideos)
     .post(
         upload.fields([
             {
@@ -33,6 +32,9 @@ router
         publishAVideo
     );
 
+router
+    .route("/query")
+    .get(getAllVideos)
 
 router
     .route("/:videoId")
@@ -42,7 +44,7 @@ router
 
 router.route("/toggle/publish/:videoId").patch(togglePublishStatus);
 
-router.route("/:username").get(getVideosByChannel)
+router.route("/c/:username").get(getVideosByChannel)
 
 
 export default router

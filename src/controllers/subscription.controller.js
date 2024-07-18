@@ -1,22 +1,30 @@
-import { Subscription } from "../models/subscription.model";
+import { Subscription } from "../models/subscription.model.js";
 import { User } from "../models/user.model.js"
 import mongoose from "mongoose"
-import { asyncHandler } from "../utils/asyncHandler";
-import { ApiError } from "../utils/ApiError";
-import { ApiResponse } from "../utils/ApiResponse";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
 
 const toggleSubscription = asyncHandler(async (req, res) => {
-    const { channelId } = req.params
+    const { channelUsername } = req.params
 
-    if (!channelId.trim()) {
-        throw new ApiError(400, "Channel ID is missing!")
+    if (!channelUsername.trim()) {
+        throw new ApiError(400, "Channel username is missing!")
+    }
+
+    const channel = await User.findOne({
+        username: channelUsername
+    })
+
+    if (!channel) {
+        throw new ApiError(404, "Channel does not exist.")
     }
 
     const subscription = await Subscription.aggregate([
         {
             $match: {
                 subscriber: new mongoose.Types.ObjectId(String(req.user._id)),
-                channel: new mongoose.Types.ObjectId(String(channelId))
+                channel: new mongoose.Types.ObjectId(String(channel._id))
             }
         }
     ])
@@ -32,7 +40,7 @@ const toggleSubscription = asyncHandler(async (req, res) => {
     } else {
         const newSubscription = await Subscription.create({
             subscriber: req.user._id,
-            channel: channelId
+            channel: channel._id
         });
 
         if (!newSubscription) {
@@ -54,16 +62,24 @@ const toggleSubscription = asyncHandler(async (req, res) => {
 
 // controller to return subscriber list of a channel
 const getUserChannelSubscribers = asyncHandler(async (req, res) => {
-    const { channelId } = req.params
+    const { channelUsername } = req.params
 
-    if (!channelId.trim()) {
-        throw new ApiError(400, "Channel ID is missing!")
+    if (!channelUsername.trim()) {
+        throw new ApiError(400, "Channel username is missing!")
+    }
+
+    const channel = await User.findOne({
+        username: channelUsername
+    })
+
+    if (!channel) {
+        throw new ApiError(404, "Channel does not exist.")
     }
 
     const channelSubscriptions = await Subscription.aggregate([
         {
             $match: {
-                channel: new mongoose.Types.ObjectId(String(channelId))
+                channel: new mongoose.Types.ObjectId(String(channel._id))
             }
         },
         {
@@ -106,16 +122,22 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
 
 // controller to return channel list to which user has subscribed
 const getSubscribedChannels = asyncHandler(async (req, res) => {
-    const { subscriberId } = req.params
+    const { username } = req.params
 
-    if (!subscriberId.trim()) {
-        throw new ApiError(400, "Subscriber ID is missing!")
+    if (!username.trim()) {
+        throw new ApiError(400, "Channel username is missing!")
+    }
+
+    const user = await User.findOne({ username })
+
+    if (!user) {
+        throw new ApiError(404, "User does not exist.")
     }
 
     const channelsSubscribedTo = await Subscription.aggregate([
         {
             $match: {
-                subscriber: new mongoose.Types.ObjectId(String(subscriberId))
+                subscriber: new mongoose.Types.ObjectId(String(user._id))
             }
         },
         {
