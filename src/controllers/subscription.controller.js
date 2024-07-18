@@ -116,7 +116,6 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
                 "Channel subscribers fetched successfully."
             )
         )
-
 })
 
 
@@ -169,8 +168,6 @@ const getSubscribedChannels = asyncHandler(async (req, res) => {
                 "Subscribed channels fetched successfully."
             )
         )
-
-
 })
 
 export {
