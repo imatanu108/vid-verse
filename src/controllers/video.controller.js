@@ -8,6 +8,7 @@ import mongoose from "mongoose";
 
 
 const publishAVideo = asyncHandler(async (req, res) => {
+    
     const { title, description } = req.body
 
     if (!title || !title.trim() || !description || !description.trim()) {
@@ -84,9 +85,10 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
 
 const getVideoById = asyncHandler(async (req, res) => {
+
     const { videoId } = req.params
 
-    if (!videoId.trim()) {
+    if (!videoId) {
         throw new ApiError(400, "Video ID is missing!")
     }
 
@@ -114,9 +116,10 @@ const getVideoById = asyncHandler(async (req, res) => {
 
 
 const updateVideo = asyncHandler(async (req, res) => {
+
     const { videoId } = req.params
 
-    if (!videoId.trim()) {
+    if (!videoId) {
         throw new ApiError(400, "Video ID is missing!")
     }
 
@@ -179,9 +182,10 @@ const updateVideo = asyncHandler(async (req, res) => {
 
 
 const deleteVideo = asyncHandler(async (req, res) => {
+
     const { videoId } = req.params
 
-    if (!videoId.trim()) {
+    if (!videoId) {
         throw new ApiError(400, "Video ID is missing!")
     }
 
@@ -221,9 +225,10 @@ const deleteVideo = asyncHandler(async (req, res) => {
 
 
 const togglePublishStatus = asyncHandler(async (req, res) => {
+
     const { videoId } = req.params
 
-    if (!videoId.trim()) {
+    if (!videoId) {
         throw new ApiError(400, "Video ID is missing!")
     }
 
@@ -261,6 +266,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
+
     const { page = 1, limit = 10, query, sortBy = "createdAt", sortType = "desc" } = req.query
 
     const pipeline = [];
@@ -443,6 +449,7 @@ const getVideosByChannel = asyncHandler(async (req, res) => {
         )
 
 })
+
 
 export {
     publishAVideo,

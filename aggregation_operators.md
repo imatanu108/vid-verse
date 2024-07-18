@@ -1,4 +1,4 @@
-Sure, I'll explain each of the key operators with a sample input and the resulting output for better clarity.
+# Aggregation Operators
 
 ### 1. `$match`
 Filters documents based on specified conditions.

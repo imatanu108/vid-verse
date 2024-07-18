@@ -8,7 +8,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 const toggleSubscription = asyncHandler(async (req, res) => {
     const { channelUsername } = req.params
 
-    if (!channelUsername.trim()) {
+    if (!channelUsername) {
         throw new ApiError(400, "Channel username is missing!")
     }
 
@@ -64,7 +64,7 @@ const toggleSubscription = asyncHandler(async (req, res) => {
 const getUserChannelSubscribers = asyncHandler(async (req, res) => {
     const { channelUsername } = req.params
 
-    if (!channelUsername.trim()) {
+    if (!channelUsername) {
         throw new ApiError(400, "Channel username is missing!")
     }
 
@@ -123,7 +123,7 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
 const getSubscribedChannels = asyncHandler(async (req, res) => {
     const { username } = req.params
 
-    if (!username.trim()) {
+    if (!username) {
         throw new ApiError(400, "Channel username is missing!")
     }
 

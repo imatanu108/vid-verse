@@ -4,8 +4,12 @@ const tweetSchema = new Schema(
     {
         content: {
             type: String,
-            required: true
         },
+        images: [
+            {
+                type: String, // cloudinary url
+            }
+        ],
         owner: {
             type: Schema.Types.ObjectId,
             ref: "User"
