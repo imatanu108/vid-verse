@@ -17,6 +17,11 @@ const createTweet = asyncHandler(async (req, res) => {
     let imagesUrlList = [];
 
     if (req.files && Array.isArray(req.files.images) && req.files.images.length > 0) {
+        
+        if (req.files.images.length > 10) {
+            throw new ApiError(400, "Maximum 10 files can be uploaded at one time.")
+        }
+
         const uploadPromises = req.files.images.map(async (image) => {
             const uploadResult = await uploadOnCloudinary(image.path, "image");
             if (!uploadResult) {
@@ -28,11 +33,11 @@ const createTweet = asyncHandler(async (req, res) => {
         // Wait for all image uploads to complete
         imagesUrlList = await Promise.all(uploadPromises);
 
-        // Here, uploadPromises is an array of promises created by mapping over req.files.images. Each promise, when resolved, returns the URL of the uploaded image.
-        // Promise.all(uploadPromises) returns a single promise that resolves when all the promises in the uploadPromises array have resolved.
-        // The resolved value of Promise.all is an array containing the results of each individual promise in the order they were in the original array.
-        // imagesUrlList is assigned this array of results (image URLs).
     }
+    // Here, uploadPromises is an array of promises created by mapping over req.files.images. Each promise, when resolved, returns the URL of the uploaded image.
+    // Promise.all(uploadPromises) returns a single promise that resolves when all the promises in the uploadPromises array have resolved.
+    // The resolved value of Promise.all is an array containing the results of each individual promise in the order they were in the original array.
+    // imagesUrlList is assigned this array of results (image URLs).
 
     const tweet = await Tweet.create({
         content: content,
