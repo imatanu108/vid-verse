@@ -33,7 +33,7 @@ router
     );
 
 router
-    .route("/query")
+    .route("/find/all")
     .get(getAllVideos)
 
 router

@@ -8,7 +8,7 @@ import mongoose from "mongoose";
 
 
 const publishAVideo = asyncHandler(async (req, res) => {
-    
+
     const { title, description } = req.body
 
     if (!title || !title.trim() || !description || !description.trim()) {
@@ -97,10 +97,109 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid video ID format!");
     }
 
-    const video = await Video.findById(videoId);
+    let video;
 
-    if (!video) {
-        throw new ApiError(404, "Video does not exist!")
+    try {
+        video = await Video.aggregate([
+            {
+                $match: {
+                    _id: new mongoose.Types.ObjectId(String(videoId))
+                }
+            },
+            {
+                $lookup: {
+                    from: "likes",
+                    localField: "_id",
+                    foreignField: "video",
+                    as: "likes",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "likedBy",
+                                foreignField: "_id",
+                                as: "likedBy",
+                                pipeline: [
+                                    {
+                                        $project: {
+                                            fullName: 1,
+                                            username: 1,
+                                            avatar: 1
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            $addFields: {
+                                likedBy: { $arrayElemAt: ["$likedBy", 0] }
+                            }
+                        },
+                        {
+                            $project: {
+                                likedBy: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $lookup: {
+                    from: "comments",
+                    localField: "_id",
+                    foreignField: "video",
+                    as: "comments",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "owner",
+                                foreignField: "_id",
+                                as: "owner",
+                                pipeline: [
+                                    {
+                                        $project: {
+                                            fullName: 1,
+                                            username: 1,
+                                            avatar: 1
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            $addFields: {
+                                owner: { $arrayElemAt: ["$owner", 0] }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $addFields: {
+                    likesCount: {
+                        $size: "$likes"
+                    },
+                    commentsCount: {
+                        $size: "$comments"
+                    },
+                    isLikedbyUser: {
+                        $cond: {
+                            if: { $in: [req.user._id, "$likes.likedBy._id"] },
+                            then: true,
+                            else: false
+                        }
+                    }
+                }
+            }
+        ])
+
+        if (!video || video.length === 0) {
+            throw new ApiError(404, "Video not found.");
+        }
+
+    } catch (error) {
+        throw new ApiError(500, "Aggregation error: " + err.message);
     }
 
     return res
@@ -108,7 +207,7 @@ const getVideoById = asyncHandler(async (req, res) => {
         .json(
             new ApiResponse(
                 200,
-                video,
+                video[0],
                 "Video found successfully."
             )
         )

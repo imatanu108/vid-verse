@@ -356,10 +356,141 @@ const getAllTweets = asyncHandler(async (req, res) => {
                     currentPage: parseInt(page),
                     totalPages: Math.ceil(totalTweetsCount / limit),
                     totalTweets: totalTweetsCount
-                }
+                },
+                "Tweets fetched successfully."
             )
         )
 
+})
+
+
+const getTweetById = asyncHandler(async (req, res) => {
+
+    const { tweetId } = req.params
+
+    if (!tweetId) {
+        throw new ApiError(400, "Tweet ID is missing!")
+    }
+
+    // Check if videoId is a valid MongoDB ObjectId
+    if (!mongoose.isValidObjectId(tweetId)) {
+        throw new ApiError(400, "Invalid tweet ID format!");
+    }
+
+    let tweet;
+
+    try {
+        tweet = await Tweet.aggregate([
+            {
+                $match: {
+                    _id: new mongoose.Types.ObjectId(String(tweetId))
+                }
+            },
+            {
+                $lookup: {
+                    from: "likes",
+                    localField: "_id",
+                    foreignField: "tweet",
+                    as: "likes",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "likedBy",
+                                foreignField: "_id",
+                                as: "likedBy",
+                                pipeline: [
+                                    {
+                                        $project: {
+                                            fullName: 1,
+                                            username: 1,
+                                            avatar: 1
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            $addFields: {
+                                likedBy: { $arrayElemAt: ["$likedBy", 0] }
+                            }
+                        },
+                        {
+                            $project: {
+                                likedBy: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $lookup: {
+                    from: "comments",
+                    localField: "_id",
+                    foreignField: "tweet",
+                    as: "comments",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "owner",
+                                foreignField: "_id",
+                                as: "owner",
+                                pipeline: [
+                                    {
+                                        $project: {
+                                            fullName: 1,
+                                            username: 1,
+                                            avatar: 1
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            $addFields: {
+                                owner: { $arrayElemAt: ["$owner", 0] }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $addFields: {
+                    likesCount: {
+                        $size: "$likes"
+                    },
+                    commentsCount: {
+                        $size: "$comments"
+                    },
+                    isLikedbyUser: {
+                        $cond: {
+                            if: { $in: [req.user._id, "$likes.likedBy._id"] },
+                            then: true,
+                            else: false
+                        }
+                    }
+                }
+            }
+        ])
+
+        if (!tweet || tweet.length === 0) {
+            throw new ApiError(404, "Video not found.");
+        }
+
+    } catch (error) {
+        throw new ApiError(500, "Aggregation error: " + err.message);
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                tweet[0],
+                "tweet found successfully."
+            )
+        )
 })
 
 
@@ -368,5 +499,6 @@ export {
     updateTweet,
     deleteTweet,
     getUserTweets,
-    getAllTweets
+    getAllTweets,
+    getTweetById
 }

@@ -4,7 +4,8 @@ import {
     updateTweet,
     deleteTweet,
     getUserTweets,
-    getAllTweets
+    getAllTweets,
+    getTweetById
 } from "../controllers/tweet.controller.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js"
 import { upload } from '../middlewares/multer.middleware.js';
@@ -23,8 +24,19 @@ router
         ]),
         createTweet
     );
-router.route("/user/:username").get(getUserTweets);
-router.route("/:tweetId").patch(updateTweet).delete(deleteTweet);
-router.route("/find").get(getAllTweets)
+
+router
+    .route("/user/:username")
+    .get(getUserTweets);
+
+router
+    .route("/:tweetId")
+    .get(getTweetById)
+    .patch(updateTweet)
+    .delete(deleteTweet);
+
+router
+    .route("/find/all")
+    .get(getAllTweets)
 
 export default router
