@@ -1,3 +1,3 @@
-### Vid-verse
+### vid-verse
 
-This is backend project of social media app, it has the hyprib functionality of both Youtube and Twitter.
+This is a backend project of a social media app, it has the hybrid functionality of both Youtube and Twitter.
