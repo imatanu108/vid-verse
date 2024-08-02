@@ -3,8 +3,18 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { Registration } from "../models/registration.model.js";
+import { sendVerificationMail, sendForgotPasswordMail } from "../utils/sendEmail.js";
 import jwt from 'jsonwebtoken';
 import mongoose from "mongoose";
+import { Video } from "../models/video.model.js";
+import { Tweet } from "../models/tweet.model.js";
+import { Subscription } from "../models/subscription.model.js";
+import { Report } from "../models/report.model.js";
+import { Playlist } from "../models/playlist.model.js";
+import { Like } from "../models/like.model.js";
+import { Comment } from "../models/comment.model.js";
+
 
 
 // pre-defined method for generating access and refresh tokens 
@@ -35,8 +45,127 @@ const generateAccessAndRefreshTokens = async (userId) => {
 
 // User methods -->
 
+const emailRegistration = asyncHandler(async (req, res) => {
+    const { email } = req.body
+
+    if (!email || !email.trim()) {
+        throw new ApiError(400, "Email is required.")
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailPattern.test(email)) {
+        throw new ApiError(400, "Invalid email address format.");
+    }
+
+    const existedUser = await User.findOne({ email })
+
+    if (existedUser) {
+        throw new ApiError(409, "This email is already linked to an user.")
+    }
+
+    try {
+        await Registration.findOneAndDelete({ email })
+    } catch (error) {
+        throw new ApiError(400, "Something went wrong while deleting the previous registration with the same email.")
+    }
+
+    const registration = await Registration.create({ email })
+
+    if (!registration) {
+        throw new ApiError(500, "Something went wrong while registering.")
+    }
+
+    const verificationToken = registration.generateVerificationToken()
+    // console.log("verificationToken: ", verificationToken)
+
+    if (!verificationToken) {
+        throw new ApiError(500, "Something went wrong while generating verification token.")
+    }
+
+    registration.verificationToken = verificationToken
+
+    try {
+        await registration.save({ validateBeforeSave: false });
+    } catch (error) {
+        throw new ApiError(500, "Error while saving registration: " + error.message);
+    }
+
+
+    try {
+        await sendVerificationMail(email, verificationToken);
+    } catch (error) {
+        throw new ApiError(500, "Error while sending verification email: " + error.message);
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                null,
+                "Registration successful. Please verify your email."
+            )
+        )
+
+})
+
+
+const verifyEmail = asyncHandler(async (req, res) => {
+    const { token } = req.query;
+
+    let email;
+    try {
+        const decoded = jwt.verify(token, process.env.VERIFICATION_TOKEN_SECRET);
+
+        const registration = await Registration.findOne({ email: decoded.email, refreshToken: token });
+
+        if (!registration) {
+            throw new ApiError(400, "Invalid or expired token.");
+        }
+
+        email = registration.email;
+
+    } catch (error) {
+        // Handle different types of errors accordingly
+        if (error instanceof jwt.JsonWebTokenError) {
+            throw new ApiError(400, "Invalid or expired token.");
+        }
+        // Log or handle other types of errors (e.g., database errors)
+        throw new ApiError(500, "Internal Server Error.");
+    }
+
+    try {
+        await Registration.findOneAndDelete({ email })
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while deleting the old registration.")
+    }
+
+    const cookiesOptions = {
+        httpOnly: true,
+        secure: true,
+    }
+
+    return res
+        .status(200)
+        .cookie("email", email, cookiesOptions)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    email,
+                    verified: true
+                },
+                "Email verified successfully."
+            )
+        )
+
+})
+
+
 const registerUser = asyncHandler(async (req, res) => {
-    // 1. get user details from frontend
+    // complete registration after email verification
+    // 1. get user details from frontend (get email from the cookeis after verifying email)
     // 2. validation - if valid data or not (e.g. empty field)
     // 3. check if user already exists: same username or email
     // 4. check for images and check for avatars
@@ -49,7 +178,13 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // 1. Getting user details
 
-    const { fullName, username, email, password } = req.body
+    const email = req.cookies.email
+
+    if (!email) {
+        throw new ApiError(400, "Unauthorized request.")
+    }
+
+    const { fullName, username, password } = req.body
 
     // console.log("email:", email)
     // console.log("username:", username)
@@ -57,7 +192,7 @@ const registerUser = asyncHandler(async (req, res) => {
     // 2. Basic Validation
 
     if (
-        [fullName, username, email, password].some((field) => field?.trim() === "")
+        [fullName, username, password].some((field) => field?.trim() === "")
     ) {
         throw new ApiError(400, "All fields are required!")
     }
@@ -71,12 +206,16 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // 3. checking for existing user
 
-    const existedUser = await User.findOne({
-        $or: [{ username }, { email }]
-    })
+    const existedUserWithEmail = await User.findOne({ email })
 
-    if (existedUser) {
-        throw new ApiError(409, "User with email or username already exists")
+    if (existedUserWithEmail) {
+        throw new ApiError(409, "User with email already exists")
+    }
+
+    const existedUserWithUsername = await User.findOne({ email })
+
+    if (existedUserWithUsername) {
+        throw new ApiError(409, "User with username already exists")
     }
 
     // 4. check for images and check for avatars
@@ -606,7 +745,183 @@ const getWatchHistory = asyncHandler(async (req, res) => {
 })
 
 
+const sendForgotPasswordToken = asyncHandler(async (req, res) => {
+    const { usernameOrEmail } = req.body
+
+    if (!usernameOrEmail || !usernameOrEmail.trim()) {
+        throw new ApiError(400, "Email or username is required.")
+    }
+
+    const user = await User.findOne({
+        $or: [
+            { email: usernameOrEmail },
+            { username: usernameOrEmail }
+        ]
+    })
+
+    if (!user) {
+        throw new ApiError(404, "User not found.")
+    }
+
+    const forgotPasswordToken = user.generateForgotPasswordToken()
+    // console.log("forgotPasswordToken: ", forgotPasswordToken)
+
+    if (!forgotPasswordToken) {
+        throw new ApiError(500, "Something went wrong while generating forgot-password token.")
+    }
+
+    user.forgotPasswordToken = forgotPasswordToken
+
+    try {
+        await user.save({ validateBeforeSave: false });
+    } catch (error) {
+        throw new ApiError(500, "Error while saving user : " + error.message);
+    }
+
+    try {
+        await sendForgotPasswordMail(user.email, forgotPasswordToken, user.username);
+    } catch (error) {
+        throw new ApiError(500, "Error while sending forgot password email: " + error.message);
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                null,
+                "Forgot password mail sent successfully."
+            )
+        )
+})
+
+
+const forgotPassword = asyncHandler(async (req, res) => {
+    const { token } = req.query
+    const { newPassword } = req.body
+
+    if (!token || !token.trim()) {
+        throw new ApiError(400, "Token is missing.")
+    }
+
+    if (!newPassword || !newPassword.trim()) {
+        throw new ApiError(400, "Password is required.")
+    }
+
+    const decoded = jwt.verify(token, process.env.FORGOT_PASSWORD_TOKEN_SECRET);
+
+    if (!decoded) {
+        throw new ApiError(400, "Forgot password token is invalid or expired.")
+    }
+
+    const user = await User.findOne({
+        _id: decoded._id,
+        email: decoded.email,
+        forgotPasswordToken: token
+    })
+
+    if (!user) {
+        throw new ApiError(400, "Forgot password token is invalid or expired.")
+    }
+
+    user.password = newPassword
+    user.forgotPasswordToken = null
+
+    try {
+        await user.save({ validateBeforeSave: false });
+    } catch (error) {
+        throw new ApiError(500, "Error while saving user: " + error.message);
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                null,
+                "Password updated successfully."
+            )
+        )
+
+})
+
+
+const deleteAccount = asyncHandler(async (req, res) => {
+    const { password } = req.body
+
+    if (!password || !password.trim()) {
+        throw new ApiError(400, "Password is required.")
+    }
+
+    const user = await User.findById(req.user._id)
+
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if (!isPasswordValid) {
+        throw new ApiError(400, "Incorrect password.")
+    }
+
+    // deleting other user related documents
+
+    try {
+        await Video.deleteMany({
+            owner: req.user._id
+        })
+
+        await Tweet.deleteMany({
+            owner: req.user._id
+        })
+
+        await Subscription.deleteMany({
+            $or: [
+                { subscriber: req.user._id },
+                { channel: req.user._id },
+            ]
+        })
+
+        await Report.deleteMany({
+            reportBy: req.user._id
+        })
+
+        await Playlist.deleteMany({
+            owner: req.user._id
+        })
+
+        await Like.deleteMany({
+            likedBy: req.user._id
+        })
+
+        await Comment.deleteMany({
+            owner: req.user._id
+        })
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while deleting the user || Error: " + error)
+    }
+
+    // deleting the user at last
+
+    const deletedUser = await User.findByIdAndDelete(req.user._id)
+
+    if (!deletedUser) {
+        throw new ApiError(500, "Something went wrong while deleting the user.")
+    }
+
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                deletedUser,
+                "Account deleted successfully."
+            )
+        )
+})
+
+
 export {
+    emailRegistration,
+    verifyEmail,
     registerUser,
     loginUser,
     logoutUser,
@@ -617,5 +932,8 @@ export {
     updateUserAvatar,
     updateUserCoverImage,
     getUserChannelProfile,
-    getWatchHistory
+    getWatchHistory,
+    sendForgotPasswordToken,
+    forgotPassword,
+    deleteAccount
 }

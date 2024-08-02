@@ -1,28 +1,37 @@
 import { Router } from "express";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { 
+import {
     changeCurrentPassword,
     getCurrentUser,
     getUserChannelProfile,
     getWatchHistory,
-    loginUser, 
-    logoutUser, 
-    refreshAccessToken, 
-    registerUser, 
+    loginUser,
+    logoutUser,
+    refreshAccessToken,
+    registerUser,
     updateAccountDetails,
     updateUserAvatar,
-    updateUserCoverImage
+    updateUserCoverImage,
+    emailRegistration,
+    verifyEmail,
+    sendForgotPasswordToken,
+    forgotPassword,
+    deleteAccount
 } from "../controllers/user.controller.js";
 
 const router = Router()
+
+router.route("/register-email").post(emailRegistration)
+
+router.route("/verify-email").post(verifyEmail)
 
 router.route("/register").post(
     upload.fields([
         {
             name: "avatar",
             maxCount: 1
-        }, 
+        },
         {
             name: "coverImage",
             maxCount: 1
@@ -32,6 +41,10 @@ router.route("/register").post(
 )
 
 router.route("/login").post(loginUser)
+
+router.route("/forgot-password-token").post(sendForgotPasswordToken)
+
+router.route("/forgot-password").post(forgotPassword)
 
 
 // secured routes
@@ -60,5 +73,9 @@ router.route("/update-cover-image").patch(
 router.route("/c/:username").get(verifyJWT, getUserChannelProfile)
 
 router.route("/watch-history").get(verifyJWT, getWatchHistory)
+
+router.route("/delete-user").delete(verifyJWT, deleteAccount)
+
+
 
 export default router
