@@ -78,7 +78,7 @@ const emailRegistration = asyncHandler(async (req, res) => {
 
     const verificationOTP = Math.floor(Math.random() * 900000) + 100000;
 
-    console.log("verificationOTP: ", verificationOTP)
+    // console.log("verificationOTP: ", verificationOTP)
 
     registration.verificationOTP = verificationOTP
 
@@ -781,7 +781,7 @@ const sendForgotPasswordOTP = asyncHandler(async (req, res) => {
     const forgotPasswordOTP = Math.floor(Math.random() * 900000) + 100000;
     user.forgotPasswordOTP = forgotPasswordOTP
 
-    console.log("forgotPasswordOTP: ", forgotPasswordOTP)
+    // console.log("forgotPasswordOTP: ", forgotPasswordOTP)
 
     const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
     user.forgotPasswordOtpExpiry = otpExpiry
