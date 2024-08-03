@@ -46,8 +46,11 @@ const userSchema = new Schema(
         refreshToken: {
             type: String
         },
-        forgotPasswordToken: {
-            type: String
+        forgotPasswordOTP: {
+            type: Number
+        },
+        forgotPasswordOtpExpiry: {
+            type: Date
         }
 
     },
@@ -97,17 +100,5 @@ userSchema.methods.generateRefreshToken = function () {
     )
 }
 
-userSchema.methods.generateForgotPasswordToken = function () {
-    return jwt.sign(
-        {
-            _id: this._id,
-            email: this.email
-        },
-        process.env.FORGOT_PASSWORD_TOKEN_SECRET,
-        {
-            expiresIn: process.env.FORGOT_PASSWORD_TOKEN_EXPIRY
-        }
-    )
-}
 
 export const User = mongoose.model("User", userSchema)

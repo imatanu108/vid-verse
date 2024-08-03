@@ -14,7 +14,7 @@ import { Report } from "../models/report.model.js";
 import { Playlist } from "../models/playlist.model.js";
 import { Like } from "../models/like.model.js";
 import { Comment } from "../models/comment.model.js";
-
+import { encrypt, decrypt } from "../utils/crypto.js";
 
 
 // pre-defined method for generating access and refresh tokens 
@@ -76,14 +76,11 @@ const emailRegistration = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong while registering.")
     }
 
-    const verificationToken = registration.generateVerificationToken()
-    // console.log("verificationToken: ", verificationToken)
+    const verificationOTP = Math.floor(Math.random() * 900000) + 100000;
 
-    if (!verificationToken) {
-        throw new ApiError(500, "Something went wrong while generating verification token.")
-    }
+    console.log("verificationOTP: ", verificationOTP)
 
-    registration.verificationToken = verificationToken
+    registration.verificationOTP = verificationOTP
 
     try {
         await registration.save({ validateBeforeSave: false });
@@ -91,20 +88,29 @@ const emailRegistration = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Error while saving registration: " + error.message);
     }
 
-
     try {
-        await sendVerificationMail(email, verificationToken);
+        await sendVerificationMail(email, verificationOTP);
     } catch (error) {
         throw new ApiError(500, "Error while sending verification email: " + error.message);
     }
 
+    // encrypting email before sending through cookies
+    const encryptedEmail = encrypt(email)
+
+    const cookiesOptions = {
+        httpOnly: true,
+        secure: true,
+        maxAge: 20 * 60 * 1000,
+    }
+
     return res
         .status(200)
+        .cookie("encryptedEmail", encryptedEmail, cookiesOptions)
         .json(
             new ApiResponse(
                 200,
                 null,
-                "Registration successful. Please verify your email."
+                "OTP sent successfuly. Please verify your email."
             )
         )
 
@@ -112,27 +118,26 @@ const emailRegistration = asyncHandler(async (req, res) => {
 
 
 const verifyEmail = asyncHandler(async (req, res) => {
-    const { token } = req.query;
 
-    let email;
-    try {
-        const decoded = jwt.verify(token, process.env.VERIFICATION_TOKEN_SECRET);
+    const { verificationOTP } = req.body;
 
-        const registration = await Registration.findOne({ email: decoded.email, refreshToken: token });
+    const encryptedEmail = req.cookies.encryptedEmail
 
-        if (!registration) {
-            throw new ApiError(400, "Invalid or expired token.");
-        }
+    if (!encryptedEmail) {
+        throw new ApiError(400, "Session expired.")
+    }
 
-        email = registration.email;
+    // decrypting the email
+    const email = decrypt(encryptedEmail.encryptedData, encryptedEmail.iv)
 
-    } catch (error) {
-        // Handle different types of errors accordingly
-        if (error instanceof jwt.JsonWebTokenError) {
-            throw new ApiError(400, "Invalid or expired token.");
-        }
-        // Log or handle other types of errors (e.g., database errors)
-        throw new ApiError(500, "Internal Server Error.");
+    if (!email) {
+        throw new ApiError(400, "Something went wrong while decryption.")
+    }
+
+    const registration = await Registration.findOne({ email, verificationOTP });
+
+    if (!registration) {
+        throw new ApiError(400, "Invalid or expired OTP.");
     }
 
     try {
@@ -144,11 +149,15 @@ const verifyEmail = asyncHandler(async (req, res) => {
     const cookiesOptions = {
         httpOnly: true,
         secure: true,
+        maxAge: 30 * 60 * 1000,
     }
+
+    // encrypting verified email
+    const verifiedEmail = encrypt(email)
 
     return res
         .status(200)
-        .cookie("email", email, cookiesOptions)
+        .cookie("verifiedEmail", verifiedEmail, cookiesOptions)
         .json(
             new ApiResponse(
                 200,
@@ -156,7 +165,7 @@ const verifyEmail = asyncHandler(async (req, res) => {
                     email,
                     verified: true
                 },
-                "Email verified successfully."
+                "Email verification successful."
             )
         )
 
@@ -178,10 +187,16 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // 1. Getting user details
 
-    const email = req.cookies.email
+    const verifiedEmail = req.cookies.verifiedEmail
+
+    if (!verifiedEmail) {
+        throw new ApiError(400, "Session expired.")
+    }
+
+    const email = decrypt(verifiedEmail.encryptedData, verifiedEmail.iv)
 
     if (!email) {
-        throw new ApiError(400, "Unauthorized request.")
+        throw new ApiError(400, "Something went wrong while decryption.")
     }
 
     const { fullName, username, password } = req.body
@@ -745,7 +760,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
 })
 
 
-const sendForgotPasswordToken = asyncHandler(async (req, res) => {
+const sendForgotPasswordOTP = asyncHandler(async (req, res) => {
     const { usernameOrEmail } = req.body
 
     if (!usernameOrEmail || !usernameOrEmail.trim()) {
@@ -763,14 +778,13 @@ const sendForgotPasswordToken = asyncHandler(async (req, res) => {
         throw new ApiError(404, "User not found.")
     }
 
-    const forgotPasswordToken = user.generateForgotPasswordToken()
-    // console.log("forgotPasswordToken: ", forgotPasswordToken)
+    const forgotPasswordOTP = Math.floor(Math.random() * 900000) + 100000;
+    user.forgotPasswordOTP = forgotPasswordOTP
 
-    if (!forgotPasswordToken) {
-        throw new ApiError(500, "Something went wrong while generating forgot-password token.")
-    }
+    console.log("forgotPasswordOTP: ", forgotPasswordOTP)
 
-    user.forgotPasswordToken = forgotPasswordToken
+    const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    user.forgotPasswordOtpExpiry = otpExpiry
 
     try {
         await user.save({ validateBeforeSave: false });
@@ -779,53 +793,118 @@ const sendForgotPasswordToken = asyncHandler(async (req, res) => {
     }
 
     try {
-        await sendForgotPasswordMail(user.email, forgotPasswordToken, user.username);
+        await sendForgotPasswordMail(user.email, forgotPasswordOTP, user.username);
     } catch (error) {
         throw new ApiError(500, "Error while sending forgot password email: " + error.message);
     }
 
+    const encryptedEmail = encrypt(user.email)
+
+    const cookiesOptions = {
+        httpOnly: true,
+        secure: true,
+        maxAge: 15 * 60 * 1000,
+    }
+
     return res
         .status(200)
+        .cookie("encryptedEmail", encryptedEmail, cookiesOptions)
         .json(
             new ApiResponse(
                 200,
                 null,
-                "Forgot password mail sent successfully."
+                "Forgot password OTP sent successfully."
+            )
+        )
+})
+
+
+const verifyForgotPasswordOTP = asyncHandler(async (req, res) => {
+
+    const { forgotPasswordOTP } = req.body
+    const encryptedEmail = req.cookies.encryptedEmail
+
+    if (!encryptedEmail) {
+        throw new ApiError(400, "Session expired.")
+    }
+
+    const email = decrypt(encryptedEmail.encryptedData, encryptedEmail.iv)
+
+    if (!email) {
+        throw new ApiError(400, "Something went wrong while decryption.")
+    }
+
+    const user = await User.findOne({ email })
+
+    if (!user) {
+        throw new ApiError(400, "Session expired.")
+    }
+
+    if (user.forgotPasswordOTP !== forgotPasswordOTP) {
+        throw new ApiError(400, "Invalid OTP.")
+    }
+
+    if (user.forgotPasswordOtpExpiry < Date.now()) {
+        throw new ApiError(400, "OTP has expired.")
+    }
+
+    // reseting user properties after verification
+    user.forgotPasswordOTP = null
+    user.forgotPasswordOtpExpiry = null
+
+    try {
+        await user.save({ validateBeforeSave: false });
+    } catch (error) {
+        throw new ApiError(500, "Error while saving user: " + error.message);
+    }
+
+    const verifiedEmail = encrypt(email)
+
+    const cookiesOptions = {
+        httpOnly: true,
+        secure: true,
+        maxAge: 20 * 60 * 1000,
+    }
+
+    return res
+        .status(200)
+        .cookie("verifiedEmail", verifiedEmail, cookiesOptions)
+        .json(
+            new ApiResponse(
+                200,
+                null,
+                "Forgot password OTP verified successfully."
             )
         )
 })
 
 
 const forgotPassword = asyncHandler(async (req, res) => {
-    const { token } = req.query
-    const { newPassword } = req.body
 
-    if (!token || !token.trim()) {
-        throw new ApiError(400, "Token is missing.")
+    const { newPassword } = req.body
+    const verifiedEmail = req.cookies.verifiedEmail
+
+    if (!verifiedEmail) {
+        throw new ApiError(400, "Sesssion expired.")
+    }
+
+    const email = decrypt(verifiedEmail.encryptedData, verifiedEmail.iv)
+
+    if (!email) {
+        throw new ApiError(400, "Something went wrong while decryption.")
     }
 
     if (!newPassword || !newPassword.trim()) {
         throw new ApiError(400, "Password is required.")
     }
 
-    const decoded = jwt.verify(token, process.env.FORGOT_PASSWORD_TOKEN_SECRET);
-
-    if (!decoded) {
-        throw new ApiError(400, "Forgot password token is invalid or expired.")
-    }
-
-    const user = await User.findOne({
-        _id: decoded._id,
-        email: decoded.email,
-        forgotPasswordToken: token
-    })
+    const user = await User.findOne({ email })
 
     if (!user) {
         throw new ApiError(400, "Forgot password token is invalid or expired.")
     }
 
     user.password = newPassword
-    user.forgotPasswordToken = null
 
     try {
         await user.save({ validateBeforeSave: false });
@@ -933,7 +1012,8 @@ export {
     updateUserCoverImage,
     getUserChannelProfile,
     getWatchHistory,
-    sendForgotPasswordToken,
+    sendForgotPasswordOTP,
+    verifyForgotPasswordOTP,
     forgotPassword,
     deleteAccount
 }

@@ -15,7 +15,8 @@ import {
     updateUserCoverImage,
     emailRegistration,
     verifyEmail,
-    sendForgotPasswordToken,
+    sendForgotPasswordOTP,
+    verifyForgotPasswordOTP,
     forgotPassword,
     deleteAccount
 } from "../controllers/user.controller.js";
@@ -42,7 +43,9 @@ router.route("/register").post(
 
 router.route("/login").post(loginUser)
 
-router.route("/forgot-password-token").post(sendForgotPasswordToken)
+router.route("/send-forgot-password-otp").post(sendForgotPasswordOTP)
+
+router.route("/verify-forgot-password-otp").post(verifyForgotPasswordOTP)
 
 router.route("/forgot-password").post(forgotPassword)
 
