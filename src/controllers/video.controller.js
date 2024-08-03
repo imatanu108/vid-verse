@@ -198,6 +198,11 @@ const getVideoById = asyncHandler(async (req, res) => {
             throw new ApiError(404, "Video not found.");
         }
 
+        // incrementing video views
+        await Video.findByIdAndUpdate(videoId, {
+            $inc: { views: 1 }
+        });
+
     } catch (error) {
         throw new ApiError(500, "Aggregation error: " + err.message);
     }
